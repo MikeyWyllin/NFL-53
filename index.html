@@ -494,7 +494,8 @@ window.NFL53_DATA = {
 
 (() => {
   const DATA = window.NFL53_DATA;
-  const POSITION_ORDER = ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S", "K", "P", "LS", "OTHER"];
+  const POSITION_ORDER = ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S", "OTHER"];
+  const EXCLUDED_SELECTION_GROUPS = new Set(["K", "P", "LS"]);
   const MAX_MISSES = 3;
 
   function addMoreDemoPlayers() {
@@ -652,11 +653,14 @@ window.NFL53_DATA = {
   }
 
   function normalizePosition(pos = "") {
-    const p = String(pos).toUpperCase();
-    if (["QB", "RB", "FB", "WR", "TE", "K", "P", "LS", "CB", "S"].includes(p)) {
+    const p = String(pos).toUpperCase().trim();
+    if (["QB", "RB", "FB", "WR", "TE", "CB", "S"].includes(p)) {
       if (p === "FB") return "RB";
       return p;
     }
+    if (["K", "PK", "KICKER"].includes(p)) return "K";
+    if (["P", "PUNTER"].includes(p)) return "P";
+    if (["LS", "LONG SNAPPER", "LONGSNAPPER"].includes(p)) return "LS";
     if (["C", "G", "T", "OT", "OG", "LT", "LG", "RG", "RT", "OL"].includes(p)) return "OL";
     if (["DE", "DT", "NT", "DL", "EDGE"].includes(p)) return "DL";
     if (["LB", "MLB", "ILB", "OLB"].includes(p)) return "LB";
@@ -664,14 +668,18 @@ window.NFL53_DATA = {
     return "OTHER";
   }
 
+  function isSelectionEligible(player) {
+    return player && !EXCLUDED_SELECTION_GROUPS.has(normalizePosition(player.position));
+  }
+
   function buildRound(round) {
     const key = rosterKey(round);
-    const rosterIds = new Set(DATA.rosters[key] ?? []);
+    const rosterIdsRaw = new Set(DATA.rosters[key] ?? []);
     const masterIds = new Set(DATA.franchiseEligible[round.team] ?? []);
-    const mergedIds = [...new Set([...rosterIds, ...masterIds])];
+    const mergedIds = [...new Set([...rosterIdsRaw, ...masterIds])];
 
     const board = mergedIds
-      .filter(id => DATA.players[id])
+      .filter(id => isSelectionEligible(DATA.players[id]))
       .map(id => {
         const player = DATA.players[id];
         return {
@@ -679,7 +687,7 @@ window.NFL53_DATA = {
           name: player.name,
           rawPosition: player.position,
           group: normalizePosition(player.position),
-          isCorrect: rosterIds.has(id)
+          isCorrect: rosterIdsRaw.has(id)
         };
       })
       .sort((a, b) => {
@@ -688,6 +696,7 @@ window.NFL53_DATA = {
         return a.name.localeCompare(b.name);
       });
 
+    const rosterIds = new Set(board.filter(player => player.isCorrect).map(player => player.id));
     return { board, rosterIds };
   }
 
@@ -722,7 +731,7 @@ window.NFL53_DATA = {
 
     const team = DATA.teams[round.team];
     els.roundTitle.textContent = `${round.year} ${team.city} ${team.name}`;
-    els.roundSub.textContent = `Select every player you think was on this roster. Submit at the bottom when done.`;
+    els.roundSub.textContent = `Select every non-specialist player you think was on this roster. Submit at the bottom when done.`;
     setMessage("Select your answers. Nothing counts until you hit Submit.");
     render();
   }
