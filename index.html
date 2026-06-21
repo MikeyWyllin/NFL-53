@@ -217,6 +217,37 @@ input[type="search"]:focus { border-color: var(--accent); }
   border-color: var(--accent);
 }
 
+.player-btn.selected {
+  background: color-mix(in srgb, var(--warn) 18%, #101724);
+  border-color: var(--warn);
+}
+
+.submit-bar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, #080a0f 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.submit-bar .primary, .submit-bar .secondary {
+  width: 100%;
+  padding: 15px 14px;
+}
+
+.submit-bar .hidden { display: none; }
+
+.player-btn.missed {
+  outline: 2px dashed var(--warn);
+}
+
 .player-btn.wrong {
   background: color-mix(in srgb, var(--bad) 20%, #101724);
   border-color: var(--bad);
@@ -254,9 +285,9 @@ input[type="search"]:focus { border-color: var(--accent); }
       <div>
         <p class="eyebrow">NFL roster memory game</p>
         <h1>53</h1>
-        <p class="tagline">Pick the players who were actually on the generated team-year roster. Three misses ends it.</p>
+        <p class="tagline">Pick the real roster. Submit the round. Keep stacking points until one team gives you 3 misses.</p>
       </div>
-      <button id="newGameBtn" class="primary">Randomize Team + Year</button>
+      <button id="newGameBtn" class="primary">Start New Run</button>
     </section>
 
     <section class="game-card">
@@ -267,11 +298,11 @@ input[type="search"]:focus { border-color: var(--accent); }
           <p id="roundSub" class="muted">The board will merge the season roster with that franchise’s 16+ career-start player list.</p>
         </div>
         <div class="status-grid">
-          <div class="metric"><span>Score</span><strong id="score">0</strong></div>
-          <div class="metric"><span>Reward</span><strong id="reward">1</strong></div>
-          <div class="metric"><span>Streak</span><strong id="streak">0</strong></div>
+          <div class="metric"><span>Run Score</span><strong id="score">0</strong></div>
+          <div class="metric"><span>Round Score</span><strong id="reward">0</strong></div>
+          <div class="metric"><span>Rounds</span><strong id="streak">0</strong></div>
           <div class="metric"><span>Misses</span><strong id="misses">0/3</strong></div>
-          <div class="metric"><span>Correct</span><strong id="correct">0/53</strong></div>
+          <div class="metric"><span>Selected</span><strong id="correct">0</strong></div>
           <div class="metric"><span>Pool</span><strong id="poolSize">0</strong></div>
         </div>
       </div>
@@ -284,6 +315,10 @@ input[type="search"]:focus { border-color: var(--accent); }
 
       <div id="message" class="message">No round loaded.</div>
       <div id="board" class="board"></div>
+      <div class="submit-bar">
+        <button id="submitBtn" class="primary">Submit Answers</button>
+        <button id="nextRoundBtn" class="secondary hidden">Next Team</button>
+      </div>
     </section>
 
     <section class="leaderboard-card">
@@ -456,25 +491,139 @@ window.NFL53_DATA = {
 
   </script>
   <script>
+
 (() => {
   const DATA = window.NFL53_DATA;
   const POSITION_ORDER = ["QB", "RB", "WR", "TE", "OL", "DL", "LB", "CB", "S", "K", "P", "LS", "OTHER"];
-  const WIN_TARGET = 53;
   const MAX_MISSES = 3;
+
+  function addMoreDemoPlayers() {
+    const extraPlayers = {
+      CAR: {
+        "car_christian_mccaffrey": { name: "Christian McCaffrey", position: "RB" },
+        "car_dj_moore": { name: "DJ Moore", position: "WR" },
+        "car_kelvin_benjamin": { name: "Kelvin Benjamin", position: "WR" },
+        "car_brandon_lafell": { name: "Brandon LaFell", position: "WR" },
+        "car_robbie_anderson": { name: "Robbie Anderson", position: "WR" },
+        "car_ian_thomas": { name: "Ian Thomas", position: "TE" },
+        "car_travelle_wharton": { name: "Travelle Wharton", position: "G" },
+        "car_jeff_otah": { name: "Jeff Otah", position: "T" },
+        "car_taylor_moton": { name: "Taylor Moton", position: "T" },
+        "car_matt_kalil": { name: "Matt Kalil", position: "T" },
+        "car_maake_kemoeatu": { name: "Maake Kemoeatu", position: "DT" },
+        "car_mike_rucker": { name: "Mike Rucker", position: "DE" },
+        "car_kris_jenkins": { name: "Kris Jenkins", position: "DT" },
+        "car_james_anderson": { name: "James Anderson", position: "LB" },
+        "car_jon_beason": { name: "Jon Beason", position: "LB" },
+        "car_chris_harris": { name: "Chris Harris", position: "S" },
+        "car_captain_munnerlyn": { name: "Captain Munnerlyn", position: "CB" },
+        "car_james_bradberry": { name: "James Bradberry", position: "CB" },
+        "car_mike_minter": { name: "Mike Minter", position: "S" },
+        "car_john_kasay": { name: "John Kasay", position: "K" },
+        "car_todd_sauerbrun": { name: "Todd Sauerbrun", position: "P" }
+      },
+      WAS: {
+        "was_mark_brunell": { name: "Mark Brunell", position: "QB" },
+        "was_jason_campbell": { name: "Jason Campbell", position: "QB" },
+        "was_patrick_ramsey": { name: "Patrick Ramsey", position: "QB" },
+        "was_antonio_gibson": { name: "Antonio Gibson", position: "RB" },
+        "was_terry_mclaurin": { name: "Terry McLaurin", position: "WR" },
+        "was_jamison_crowder": { name: "Jamison Crowder", position: "WR" },
+        "was_rod_gardner": { name: "Rod Gardner", position: "WR" },
+        "was_jordan_reed": { name: "Jordan Reed", position: "TE" },
+        "was_morgan_moses": { name: "Morgan Moses", position: "T" },
+        "was_brandon_scherff": { name: "Brandon Scherff", position: "G" },
+        "was_randy_thomas": { name: "Randy Thomas", position: "G" },
+        "was_jon_jansen": { name: "Jon Jansen", position: "T" },
+        "was_casey_rabach": { name: "Casey Rabach", position: "C" },
+        "was_jonathan_allen": { name: "Jonathan Allen", position: "DT" },
+        "was_daron_payne": { name: "Daron Payne", position: "DT" },
+        "was_chase_young": { name: "Chase Young", position: "DE" },
+        "was_montez_sweat": { name: "Montez Sweat", position: "DE" },
+        "was_rocky_mcintosh": { name: "Rocky McIntosh", position: "LB" },
+        "was_carlos_rogers": { name: "Carlos Rogers", position: "CB" },
+        "was_shawn_springs": { name: "Shawn Springs", position: "CB" },
+        "was_laron_landry": { name: "LaRon Landry", position: "S" },
+        "was_kendall_fuller": { name: "Kendall Fuller", position: "CB" }
+      },
+      NE: {
+        "ne_drew_bledsoe": { name: "Drew Bledsoe", position: "QB" },
+        "ne_damien_harris": { name: "Damien Harris", position: "RB" },
+        "ne_james_white": { name: "James White", position: "RB" },
+        "ne_stevan_ridley": { name: "Stevan Ridley", position: "RB" },
+        "ne_deion_branch": { name: "Deion Branch", position: "WR" },
+        "ne_troy_brown": { name: "Troy Brown", position: "WR" },
+        "ne_david_givens": { name: "David Givens", position: "WR" },
+        "ne_aaron_hernandez": { name: "Aaron Hernandez", position: "TE" },
+        "ne_jermaine_wiggins": { name: "Jermaine Wiggins", position: "TE" },
+        "ne_nate_solder": { name: "Nate Solder", position: "T" },
+        "ne_joe_thuney": { name: "Joe Thuney", position: "G" },
+        "ne_david_andrews": { name: "David Andrews", position: "C" },
+        "ne_sebastian_vollmer": { name: "Sebastian Vollmer", position: "T" },
+        "ne_ted_washington": { name: "Ted Washington", position: "DT" },
+        "ne_rob_ninkovich": { name: "Rob Ninkovich", position: "LB" },
+        "ne_chandler_jones": { name: "Chandler Jones", position: "DE" },
+        "ne_jamie_collins": { name: "Jamie Collins", position: "LB" },
+        "ne_donta_hightower": { name: "Dont'a Hightower", position: "LB" },
+        "ne_malcolm_butler": { name: "Malcolm Butler", position: "CB" },
+        "ne_logan_ryan": { name: "Logan Ryan", position: "CB" },
+        "ne_patrick_chung": { name: "Patrick Chung", position: "S" },
+        "ne_matthew_slater": { name: "Matthew Slater", position: "WR" }
+      },
+      BAL: {
+        "bal_elvis_grbac": { name: "Elvis Grbac", position: "QB" },
+        "bal_lamar_jackson": { name: "Lamar Jackson", position: "QB" },
+        "bal_willis_mcgahee": { name: "Willis McGahee", position: "RB" },
+        "bal_todd_heap": { name: "Todd Heap", position: "TE" },
+        "bal_derek_mason": { name: "Derrick Mason", position: "WR" },
+        "bal_mark_clayton": { name: "Mark Clayton", position: "WR" },
+        "bal_breshad_perriman": { name: "Breshad Perriman", position: "WR" },
+        "bal_mark_andrews": { name: "Mark Andrews", position: "TE" },
+        "bal_ben_grubbs": { name: "Ben Grubbs", position: "G" },
+        "bal_orlando_brown": { name: "Orlando Brown Jr.", position: "T" },
+        "bal_ronnie_stanley": { name: "Ronnie Stanley", position: "T" },
+        "bal_kelechi_osemele": { name: "Kelechi Osemele", position: "G" },
+        "bal_kelly_gregg": { name: "Kelly Gregg", position: "DT" },
+        "bal_adalius_thomas": { name: "Adalius Thomas", position: "LB" },
+        "bal_bart_scott": { name: "Bart Scott", position: "LB" },
+        "bal_cj_mosley": { name: "C.J. Mosley", position: "LB" },
+        "bal_marlon_humphrey": { name: "Marlon Humphrey", position: "CB" },
+        "bal_jimmy_smith": { name: "Jimmy Smith", position: "CB" },
+        "bal_earl_thomas": { name: "Earl Thomas", position: "S" },
+        "bal_eric_weddle": { name: "Eric Weddle", position: "S" },
+        "bal_matt_stover": { name: "Matt Stover", position: "K" }
+      }
+    };
+
+    for (const [team, players] of Object.entries(extraPlayers)) {
+      Object.assign(DATA.players, players);
+      const existing = new Set(DATA.franchiseEligible[team] || []);
+      for (const id of Object.keys(players)) existing.add(id);
+      DATA.franchiseEligible[team] = [...existing];
+    }
+  }
+
+  addMoreDemoPlayers();
 
   const state = {
     round: null,
     board: [],
     correctIds: new Set(),
-    pickedIds: new Set(),
+    selectedIds: new Set(),
     wrongIds: new Set(),
-    score: 0,
-    reward: 1,
-    streak: 0,
-    misses: 0,
-    correct: 0,
-    gameOver: false,
-    revealed: false
+    correctPickedIds: new Set(),
+    missedIds: new Set(),
+    totalScore: 0,
+    roundScore: 0,
+    roundsCleared: 0,
+    roundNumber: 0,
+    totalCorrect: 0,
+    totalMisses: 0,
+    roundMisses: 0,
+    submitted: false,
+    runOver: false,
+    revealed: false,
+    usedRoundKeys: new Set()
   };
 
   const els = {
@@ -482,6 +631,8 @@ window.NFL53_DATA = {
     resetBtn: document.querySelector("#resetBtn"),
     revealBtn: document.querySelector("#revealBtn"),
     clearLeaderboardBtn: document.querySelector("#clearLeaderboardBtn"),
+    submitBtn: document.querySelector("#submitBtn"),
+    nextRoundBtn: document.querySelector("#nextRoundBtn"),
     searchBox: document.querySelector("#searchBox"),
     roundTitle: document.querySelector("#roundTitle"),
     roundSub: document.querySelector("#roundSub"),
@@ -528,9 +679,7 @@ window.NFL53_DATA = {
           name: player.name,
           rawPosition: player.position,
           group: normalizePosition(player.position),
-          isCorrect: rosterIds.has(id),
-          isMaster: masterIds.has(id),
-          isSeasonRoster: rosterIds.has(id)
+          isCorrect: rosterIds.has(id)
         };
       })
       .sort((a, b) => {
@@ -542,81 +691,111 @@ window.NFL53_DATA = {
     return { board, rosterIds };
   }
 
+  function startRun() {
+    state.totalScore = 0;
+    state.roundScore = 0;
+    state.roundsCleared = 0;
+    state.roundNumber = 0;
+    state.totalCorrect = 0;
+    state.totalMisses = 0;
+    state.runOver = false;
+    state.usedRoundKeys = new Set();
+    startRound(randomRound());
+  }
+
   function startRound(round = randomRound()) {
     const built = buildRound(round);
     state.round = round;
     state.board = built.board;
     state.correctIds = built.rosterIds;
-    state.pickedIds = new Set();
+    state.selectedIds = new Set();
     state.wrongIds = new Set();
-    state.score = 0;
-    state.reward = 1;
-    state.streak = 0;
-    state.misses = 0;
-    state.correct = 0;
-    state.gameOver = false;
+    state.correctPickedIds = new Set();
+    state.missedIds = new Set();
+    state.roundScore = 0;
+    state.roundMisses = 0;
+    state.submitted = false;
     state.revealed = false;
+    state.roundNumber += 1;
+    state.usedRoundKeys.add(rosterKey(round));
     els.searchBox.value = "";
 
     const team = DATA.teams[round.team];
     els.roundTitle.textContent = `${round.year} ${team.city} ${team.name}`;
-    els.roundSub.textContent = `Pick the real ${team.name} roster from the full player board. No hints. Three misses ends it.`;
-    setMessage("Pick the players who were actually on that season roster.");
+    els.roundSub.textContent = `Select every player you think was on this roster. Submit at the bottom when done.`;
+    setMessage("Select your answers. Nothing counts until you hit Submit.");
     render();
   }
 
   function randomRound() {
-    return DATA.rounds[Math.floor(Math.random() * DATA.rounds.length)];
+    const remaining = DATA.rounds.filter(round => !state.usedRoundKeys.has(rosterKey(round)));
+    const pool = remaining.length ? remaining : DATA.rounds;
+    if (!remaining.length) state.usedRoundKeys = new Set();
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function targetCount() {
-    return Math.min(WIN_TARGET, state.correctIds.size);
+  function togglePlayer(id) {
+    if (!state.round || state.submitted || state.runOver) return;
+    if (state.selectedIds.has(id)) state.selectedIds.delete(id);
+    else state.selectedIds.add(id);
+    render();
   }
 
-  function pickPlayer(id) {
-    if (state.gameOver || state.pickedIds.has(id) || state.wrongIds.has(id)) return;
+  function submitRound() {
+    if (!state.round || state.submitted || state.runOver) return;
+    if (state.selectedIds.size === 0) {
+      setMessage("Select at least one player before submitting.", "warn");
+      return;
+    }
 
-    const player = DATA.players[id];
-    if (state.correctIds.has(id)) {
-      state.pickedIds.add(id);
-      state.score += state.reward;
-      state.correct += 1;
-      state.streak += 1;
-      setMessage(`Correct: ${player.name}. +${state.reward} points.`, "good");
-      state.reward *= 2;
-      if (state.correct >= targetCount()) {
-        state.gameOver = true;
-        setMessage(`You cleared the target. Final score: ${formatNumber(state.score)}.`, "good");
-        saveLeaderboard("WIN");
-      }
+    state.wrongIds = new Set([...state.selectedIds].filter(id => !state.correctIds.has(id)));
+    state.correctPickedIds = new Set([...state.selectedIds].filter(id => state.correctIds.has(id)));
+    state.missedIds = new Set([...state.correctIds].filter(id => !state.selectedIds.has(id)));
+    state.roundMisses = state.wrongIds.size;
+    state.roundScore = scoreForCorrect(state.correctPickedIds.size);
+    state.totalScore += state.roundScore;
+    state.totalCorrect += state.correctPickedIds.size;
+    state.totalMisses += state.roundMisses;
+    state.submitted = true;
+
+    if (state.roundMisses >= MAX_MISSES) {
+      state.runOver = true;
+      setMessage(`Game over. ${state.roundMisses} misses on this team. Final run score: ${formatNumber(state.totalScore)}.`, "bad");
+      saveLeaderboard("LOSS");
     } else {
-      state.wrongIds.add(id);
-      state.misses += 1;
-      state.reward = 1;
-      state.streak = 0;
-      setMessage(`Wrong: ${player.name}. Reward reset.`, "bad");
-      if (state.misses >= MAX_MISSES) {
-        state.gameOver = true;
-        setMessage(`Game over. Final score: ${formatNumber(state.score)}.`, "bad");
-        saveLeaderboard("LOSS");
-      }
+      state.roundsCleared += 1;
+      setMessage(`Round scored. +${formatNumber(state.roundScore)} points. ${state.roundMisses}/3 misses. Keep going.`, "good");
     }
     render();
+  }
+
+  function scoreForCorrect(correctCount) {
+    if (!correctCount) return 0;
+    return Math.pow(2, Math.min(correctCount, 53)) - 1;
   }
 
   function render() {
     renderMetrics();
     renderBoard();
+    renderActions();
     renderLeaderboard();
   }
 
   function renderMetrics() {
-    els.score.textContent = formatNumber(state.score);
-    els.reward.textContent = formatNumber(state.reward);
-    els.streak.textContent = state.streak;
-    els.misses.textContent = `${state.misses}/${MAX_MISSES}`;
-    els.correct.textContent = `${state.correct}/${targetCount() || WIN_TARGET}`;
+    els.score.textContent = formatNumber(state.totalScore);
+    els.reward.textContent = formatNumber(state.roundScore);
+    els.streak.textContent = state.roundsCleared;
+    els.misses.textContent = `${state.roundMisses}/${MAX_MISSES}`;
+    els.correct.textContent = state.submitted
+      ? `${state.correctPickedIds.size}/${state.correctIds.size}`
+      : `${state.selectedIds.size}`;
     els.poolSize.textContent = state.board.length;
+  }
+
+  function renderActions() {
+    els.submitBtn.disabled = !state.round || state.submitted || state.runOver;
+    els.nextRoundBtn.classList.toggle("hidden", !(state.submitted && !state.runOver));
+    els.nextRoundBtn.disabled = !(state.submitted && !state.runOver);
   }
 
   function renderBoard() {
@@ -646,29 +825,44 @@ window.NFL53_DATA = {
       `).join("");
 
     els.board.querySelectorAll("button[data-player-id]").forEach(btn => {
-      btn.addEventListener("click", () => pickPlayer(btn.dataset.playerId));
+      btn.addEventListener("click", () => togglePlayer(btn.dataset.playerId));
     });
   }
 
   function playerButtonHtml(player) {
-    const correctPicked = state.pickedIds.has(player.id);
-    const wrongPicked = state.wrongIds.has(player.id);
+    const selected = state.selectedIds.has(player.id);
+    const correctPicked = state.submitted && state.correctPickedIds.has(player.id);
+    const wrongPicked = state.submitted && state.wrongIds.has(player.id);
+    const missed = (state.revealed || state.submitted) && state.missedIds.has(player.id);
     const revealed = state.revealed && player.isCorrect;
     const classes = ["player-btn"];
+    if (selected && !state.submitted) classes.push("selected");
     if (correctPicked) classes.push("correct");
     if (wrongPicked) classes.push("wrong");
+    if (missed) classes.push("missed");
     if (revealed) classes.push("revealed");
-    const disabled = state.gameOver || correctPicked || wrongPicked ? "disabled" : "";
+    const disabled = state.submitted || state.runOver ? "disabled" : "";
     return `<button class="${classes.join(" ")}" data-player-id="${player.id}" ${disabled}>
       ${escapeHtml(player.name)}
-      <small>${player.rawPosition}</small>
+      <small>${escapeHtml(player.rawPosition)}</small>
     </button>`;
   }
 
   function revealAnswers() {
     if (!state.round) return;
+    if (!state.submitted) {
+      setMessage("Submit your round first. Then reveal shows what you missed.", "warn");
+      return;
+    }
     state.revealed = true;
-    setMessage("Correct answers are outlined. This does not save to leaderboard.", "warn");
+    setMessage("Correct answers are outlined. This does not change your score.", "warn");
+    render();
+  }
+
+  function resetCurrentRound() {
+    if (!state.round || state.submitted || state.runOver) return;
+    state.selectedIds = new Set();
+    setMessage("Round selections cleared.");
     render();
   }
 
@@ -678,32 +872,33 @@ window.NFL53_DATA = {
   }
 
   function saveLeaderboard(result) {
-    const key = "nfl53_leaderboard";
+    const key = "nfl53_leaderboard_v2";
     const team = DATA.teams[state.round.team];
     const run = {
       result,
-      team: `${state.round.year} ${team.city} ${team.name}`,
-      score: state.score,
-      correct: state.correct,
-      misses: state.misses,
+      finalTeam: `${state.round.year} ${team.city} ${team.name}`,
+      score: state.totalScore,
+      roundsCleared: state.roundsCleared,
+      totalCorrect: state.totalCorrect,
+      totalMisses: state.totalMisses,
       date: new Date().toISOString()
     };
     const current = JSON.parse(localStorage.getItem(key) || "[]");
     current.push(run);
-    current.sort((a, b) => b.score - a.score || b.correct - a.correct || a.misses - b.misses);
+    current.sort((a, b) => b.score - a.score || b.roundsCleared - a.roundsCleared || b.totalCorrect - a.totalCorrect);
     localStorage.setItem(key, JSON.stringify(current.slice(0, 10)));
     renderLeaderboard();
   }
 
   function renderLeaderboard() {
-    const runs = JSON.parse(localStorage.getItem("nfl53_leaderboard") || "[]");
+    const runs = JSON.parse(localStorage.getItem("nfl53_leaderboard_v2") || "[]");
     els.leaderboard.innerHTML = runs.length
-      ? runs.map(run => `<li><strong>${formatNumber(run.score)}</strong> — ${escapeHtml(run.team)} · ${run.correct} correct · ${run.misses} misses · ${run.result}</li>`).join("")
+      ? runs.map(run => `<li><strong>${formatNumber(run.score)}</strong> — ${run.roundsCleared} teams cleared · ${run.totalCorrect} correct · ended on ${escapeHtml(run.finalTeam)}</li>`).join("")
       : `<li>No runs yet.</li>`;
   }
 
   function clearLeaderboard() {
-    localStorage.removeItem("nfl53_leaderboard");
+    localStorage.removeItem("nfl53_leaderboard_v2");
     renderLeaderboard();
   }
 
@@ -720,14 +915,17 @@ window.NFL53_DATA = {
       .replaceAll("'", "&#039;");
   }
 
-  els.newGameBtn.addEventListener("click", () => startRound());
-  els.resetBtn.addEventListener("click", () => state.round && startRound(state.round));
+  els.newGameBtn.addEventListener("click", startRun);
+  els.resetBtn.addEventListener("click", resetCurrentRound);
   els.revealBtn.addEventListener("click", revealAnswers);
   els.clearLeaderboardBtn.addEventListener("click", clearLeaderboard);
+  els.submitBtn.addEventListener("click", submitRound);
+  els.nextRoundBtn.addEventListener("click", () => startRound(randomRound()));
   els.searchBox.addEventListener("input", renderBoard);
 
   renderLeaderboard();
 })();
+
 
   </script>
 </body>
