@@ -560,7 +560,7 @@ window.NFL53_DATA = {
 
     const team = DATA.teams[round.team];
     els.roundTitle.textContent = `${round.year} ${team.city} ${team.name}`;
-    els.roundSub.textContent = `Merged board: ${built.board.length} players. Correct answers: ${built.rosterIds.size}. Demo uses all sample correct answers; production target is 53.`;
+    els.roundSub.textContent = `Pick the real ${team.name} roster from the full player board. No hints. Three misses ends it.`;
     setMessage("Pick the players who were actually on that season roster.");
     render();
   }
@@ -659,10 +659,9 @@ window.NFL53_DATA = {
     if (wrongPicked) classes.push("wrong");
     if (revealed) classes.push("revealed");
     const disabled = state.gameOver || correctPicked || wrongPicked ? "disabled" : "";
-    const source = player.isSeasonRoster && player.isMaster ? "Roster + 16-start list" : player.isSeasonRoster ? "Season roster" : "16-start list";
     return `<button class="${classes.join(" ")}" data-player-id="${player.id}" ${disabled}>
       ${escapeHtml(player.name)}
-      <small>${player.rawPosition} · ${source}</small>
+      <small>${player.rawPosition}</small>
     </button>`;
   }
 
